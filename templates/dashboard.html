@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container-fluid mt-4">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold">📊 BBS Dashboard</h3>
+        <div>
+            <span class="me-3">Welcome, {{ session['user_name'] }}</span>
+            <a href="/add" class="btn btn-primary btn-sm me-2">+ Add Entry</a>
+            <a href="/logout" class="btn btn-danger btn-sm">Logout</a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-4 mb-4">
+
+        <div class="col-md-3">
+            <div class="card shadow border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Entries</h6>
+                    <h2 class="fw-bold">{{ bbs_list|length }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Weight (kg)</h6>
+                    <h2 class="fw-bold">{{ total_weight }}</h2>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Chart -->
+    <div class="card shadow border-0 p-4 mb-4">
+        <h5 class="mb-3">Weight Distribution</h5>
+        <canvas id="weightChart" height="80"></canvas>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card shadow border-0">
+        <div class="card-body">
+            <h5 class="mb-3">BBS Entries</h5>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle text-center">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Project</th>
+                            <th>Element</th>
+                            <th>Diameter</th>
+                            <th>Length</th>
+                            <th>Qty</th>
+                            <th>Total Weight</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bbs_list %}
+                        <tr>
+                            <td>{{ b.id }}</td>
+                            <td>{{ b.project_name }}</td>
+                            <td>{{ b.element_type }}</td>
+                            <td>{{ b.diameter }}</td>
+                            <td>{{ b.length }}</td>
+                            <td>{{ b.quantity }}</td>
+                            <td>{{ b.total_weight|round(2) }} kg</td>
+                            <td>
+                                <a href="/edit/{{ b.id }}" class="btn btn-warning btn-sm">Edit</a>
+                                <a href="/delete/{{ b.id }}" 
+                                   class="btn btn-danger btn-sm"
+                                   onclick="return confirm('Are you sure?')">
+                                   Delete
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-muted">No Data Available</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+
+<!-- Chart JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('weightChart');
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: [{% for b in bbs_list %}"{{ b.project_name }}",{% endfor %}],
+        datasets: [{
+            label: 'Weight (kg)',
+            data: [{% for b in bbs_list %}{{ b.total_weight }},{% endfor %}],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+</script>
+
+{% endblock %}
+
