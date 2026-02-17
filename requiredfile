@@ -7,10 +7,10 @@ docker run -itd -d \
   -e DB_HOST=host.docker.internal \
   -e DB_PORT=3306 \
   -e DB_NAME=login_db \
-  -e MAIL_USERNAME=gauravxkumar3@gmail.com \
-  -e MAIL_PASSWORD=jvipqgkprukdfuje \
-  -e ADMIN_EMAIL=gauravxkumar3@gmail.com \
-  -e FLASK_SECRET_KEY=jvipqgkprukdfuje \
+  -e MAIL_USERNAME=@@@@@@@@@@@@@@@@@@\
+  -e MAIL_PASSWORD=################## \
+  -e ADMIN_EMAIL=@@@@@@@@@@@@@@@@@@@@ \
+  -e FLASK_SECRET_KEY=############### \
   -p 8084:5000 \
 e853d361fbfe
 
