@@ -1,0 +1,101 @@
+
+docker run -itd -d \
+  --name flask-app25 \
+  --add-host=host.docker.internal:host-gateway \
+  -e DB_USER=flaskuser \
+  -e DB_PASSWORD=flaskpass \
+  -e DB_HOST=host.docker.internal \
+  -e DB_PORT=3306 \
+  -e DB_NAME=login_db \
+  -e MAIL_USERNAME=gauravxkumar3@gmail.com \
+  -e MAIL_PASSWORD=jvipqgkprukdfuje \
+  -e ADMIN_EMAIL=gauravxkumar3@gmail.com \
+  -e FLASK_SECRET_KEY=jvipqgkprukdfuje \
+  -p 8084:5000 \
+e853d361fbfe
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+MariaDB [(none)]> show  databases;
++--------------------+
+| Database           |
++--------------------+
+| bbs_db             |
+| clickdb            |
+| information_schema |
+| login_db           |
+| mysql              |
+| performance_schema |
+| testdb             |
+| tomcatdb           |
+| userdb             |
++--------------------+
+9 rows in set (0.001 sec)
+
+MariaDB [(none)]> use login_db;
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+MariaDB [login_db]> show  tables;
++--------------------+
+| Tables_in_login_db |
++--------------------+
+| bbs                |
+| user               |
++--------------------+
+2 rows in set (0.001 sec)
+
+MariaDB [login_db]> SELECT * FROM bbs;
+Empty set (0.001 sec)
+
+MariaDB [login_db]> SELECT * FROM user;
++----+-------+--------------------+------------+-----------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+
+| id | name  | email              | phone      | address               | dob        | password                                                                                                                                                           | role     |
++----+-------+--------------------+------------+-----------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+
+|  1 | chaju | chaju76@gmail.com  | 7505877837 | Meerut                | 1999-05-26 | scrypt:32768:8:1$84PXZCOCP0yOWIib$e6511cea5aafe117723e081a15c25f824c499e97ce5b07085157f9f5ada51f8bb2fd11028347ee16e28c7a09c06abb1b2615b13d6b1c96af89e98509815f6051 | engineer |
+|  2 | kumar | gk797063@gmail.com | 8958991324 | Uttar Pradesh
+Bijnor | 2000-05-04 | scrypt:32768:8:1$AvWsMvdNW3n6FQkx$1e72c69d50dc96505263d742aecdb09909943760e5fd11e28b0f6f449ab8e0e3d3ebe72fc30d2069fb43982edbe3ee4b13cd0728eabed7671793b5293348b90c | engineer |
++----+-------+--------------------+------------+-----------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+
+2 rows in set (0.001 sec)
+
+MariaDB [login_db]> SELECT * FROM user;
++----+-----------+--------------------+-------------+-----------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+
+| id | name      | email              | phone       | address               | dob        | password                                                                                                                                                           | role     |
++----+-----------+--------------------+-------------+-----------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+
+|  1 | chaju     | chaju76@gmail.com  | 7505877837  | Meerut                | 1999-05-26 | scrypt:32768:8:1$84PXZCOCP0yOWIib$e6511cea5aafe117723e081a15c25f824c499e97ce5b07085157f9f5ada51f8bb2fd11028347ee16e28c7a09c06abb1b2615b13d6b1c96af89e98509815f6051 | engineer |
+|  2 | kumar     | gk797063@gmail.com | 8958991324  | Uttar Pradesh
+Bijnor | 2000-05-04 | scrypt:32768:8:1$AvWsMvdNW3n6FQkx$1e72c69d50dc96505263d742aecdb09909943760e5fd11e28b0f6f449ab8e0e3d3ebe72fc30d2069fb43982edbe3ee4b13cd0728eabed7671793b5293348b90c | engineer |
+|  3 | apple     | apple@apple.com    | 7894561234  | Noida                 | 2005-05-02 | scrypt:32768:8:1$4yMA14F4kfRmApmN$6dc91322fb0efcdf7ce6249d310fb498cd7eea48c3e4591a5f21007ad06e387638a57d8ca865eb7aa06c93f9312da96ffa62b5a7aeef54d9d3dce07854d64c98 | engineer |
+|  4 | Suraj     | suraj@abc.com      | 7896547825  | noida                 | 2002-06-02 | scrypt:32768:8:1$cONMeFc7iv3DHqml$235350e4dcc8d03b54f61c9f4ae958adfbac5074967b2d441fbac487916ccb6d3312d93a1f1b7ce8cb1746a14987b410b0ce8151dec7bf5851471404e522279e | engineer |
+|  5 | bbg       | bbg@bbg.com        | 7893698545  | Delhi                 | 2005-08-07 | scrypt:32768:8:1$I17iBQkaSv4nzg7z$f12a93d187e891f62af8b871c3033a52b04c9f83b8bb6f7b64d1b7b29080e7f1b6c977feab8fb62063fb924f4a26057674b9e2eded0933c47cf4592f77632e71 | engineer |
+|  6 | pineapple | gk797067@gmail.com | 07505877837 | Uttar Pradesh         | NULL       | scrypt:32768:8:1$pE7YMmXG4zP7tAXj$3710fd7a43773eaa5793e75029e4d54a86f826d29b0a57ef3c82fe1fe60cc6b703adff7aabe8e16a1b31f406cd7684d91abc630b572e3d913f79fdf5ff4acf99 | NULL     |
+|  7 | pqr       | pqr@gmail.com      | 7505879868  | rawali                | 2006-02-03 | scrypt:32768:8:1$zYxDCAxlmv8h88Ox$d8d62de1f791e006f7d1a901d3055c1f7fe57b0738cbbc4d7b3fcdecc4f21bf294af9d31ba6c9fd1b6144f1d2b19f2b479bfc9ee79bed9550c17e968da7b0b70 | engineer |
++----+-----------+--------------------+-------------+-----------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------+
+7 rows in set (0.007 sec)
+
+MariaDB [login_db]>
