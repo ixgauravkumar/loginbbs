@@ -1,54 +1,42 @@
-
-from flask import Flask, render_template, request, redirect, session, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
-from werkzeug.security import generate_password_hash, check_password_hash
-from functools import wraps
 import os
-import re
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 
-# ================= APP INIT =================
+# -------------------------------------------------
+# App Configuration
+# -------------------------------------------------
+
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "bbs-secret-key")
+app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")
 
-# ================= DATABASE CONFIG =================
-DB_USER = os.getenv("DB_USER", "flaskuser")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "flaskpass")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "3306")
-DB_NAME = os.getenv("DB_NAME", "login_db")
+DB_USER = os.environ.get("DB_USER", "flaskuser")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "flaskpass")
+DB_HOST = os.environ.get("DB_HOST", "localhost")
+DB_PORT = os.environ.get("DB_PORT", "3306")
+DB_NAME = os.environ.get("DB_NAME", "login_db")
 
-app.config["SQLALCHEMY_DATABASE_URI"] = \
+app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# ================= MAIL CONFIG =================
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
-app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv("MAIL_USERNAME")
+# -------------------------------------------------
+# Models
+# -------------------------------------------------
 
-mail = Mail(app)
-
-# ================= MODELS =================
 class User(db.Model):
     __tablename__ = "user"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    phone = db.Column(db.String(20))
-    address = db.Column(db.String(255))
-    dob = db.Column(db.String(20))
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default="engineer")
 
-    bbs_entries = db.relationship("BBS", backref="owner", lazy=True)
+    bbs = db.relationship("BBS", backref="user", lazy=True)
 
 
 class BBS(db.Model):
@@ -64,47 +52,44 @@ class BBS(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
+# -------------------------------------------------
+# Login Required Decorator
+# -------------------------------------------------
 
-# ================= CREATE TABLES =================
-with app.app_context():
-    db.create_all()
-
-
-# ================= LOGIN REQUIRED =================
-def login_required(func):
-    @wraps(func)
+def login_required(f):
+    @wraps(f)
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
-            flash("Please login first", "warning")
+            flash("Please login first.", "danger")
             return redirect(url_for("login"))
-        return func(*args, **kwargs)
+        return f(*args, **kwargs)
     return wrapper
 
+# -------------------------------------------------
+# Routes
+# -------------------------------------------------
 
-# ================= HOME =================
 @app.route("/")
 def home():
-    return redirect(url_for("login"))
+    return render_template("index.html")
 
 
-# ================= REGISTER =================
+# ------------------ Register ---------------------
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-
         name = request.form.get("name")
         email = request.form.get("email")
-        phone = request.form.get("phone")
-        address = request.form.get("address")
-        dob = request.form.get("dob")
         password = request.form.get("password")
 
         if not name or not email or not password:
-            flash("Name, Email and Password required", "danger")
+            flash("All fields are required!", "danger")
             return redirect(url_for("register"))
 
-        if User.query.filter_by(email=email).first():
-            flash("Email already exists", "warning")
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash("Email already registered!", "danger")
             return redirect(url_for("register"))
 
         hashed_password = generate_password_hash(password)
@@ -112,26 +97,23 @@ def register():
         new_user = User(
             name=name,
             email=email,
-            phone=phone,
-            address=address,
-            dob=dob,
             password=hashed_password
         )
 
         db.session.add(new_user)
         db.session.commit()
 
-        flash("Registration Successful!", "success")
+        flash("Registration successful! Please login.", "success")
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
 
-# ================= LOGIN =================
+# ------------------ Login ------------------------
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-
         email = request.form.get("email")
         password = request.form.get("password")
 
@@ -140,59 +122,47 @@ def login():
         if user and check_password_hash(user.password, password):
             session["user_id"] = user.id
             session["user_name"] = user.name
-            session["role"] = user.role
+            flash("Login successful!", "success")
             return redirect(url_for("dashboard"))
         else:
-            flash("Invalid credentials", "danger")
-            return redirect(url_for("login"))
+            flash("Invalid email or password!", "danger")
 
     return render_template("login.html")
 
 
-# ================= LOGOUT =================
+# ------------------ Logout -----------------------
+
 @app.route("/logout")
+@login_required
 def logout():
     session.clear()
+    flash("Logged out successfully.", "success")
     return redirect(url_for("login"))
 
 
-# ================= DASHBOARD =================
+# ------------------ Dashboard --------------------
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
     bbs_list = BBS.query.filter_by(user_id=session["user_id"]).all()
-    total_weight = sum(b.total_weight or 0 for b in bbs_list)
-
-    return render_template(
-        "dashboard.html",
-        bbs_list=bbs_list,
-        total_weight=round(total_weight, 2)
-    )
+    return render_template("dashboard.html", bbs_list=bbs_list)
 
 
-# ================= VIEW ALL BBS =================
-@app.route("/bbs")
+# ------------------ Create BBS -------------------
+
+@app.route("/bbs/create", methods=["GET", "POST"])
 @login_required
-def view_bbs():
-    bbs_list = BBS.query.filter_by(user_id=session["user_id"]).all()
-    return render_template("bbs_list.html", bbs_list=bbs_list)
-
-
-# ================= ADD BBS =================
-@app.route("/add", methods=["GET", "POST"])
-@login_required
-def add_bbs():
+def create_bbs():
     if request.method == "POST":
+        project_name = request.form.get("project_name")
+        element_type = request.form.get("element_type")
+        diameter = request.form.get("diameter")
+        length = request.form.get("length")
+        quantity = request.form.get("quantity")
+        total_weight = request.form.get("total_weight")
 
-        project_name = request.form["project_name"]
-        element_type = request.form["element_type"]
-        diameter = float(request.form["diameter"])
-        length = float(request.form["length"])
-        quantity = int(request.form["quantity"])
-
-        total_weight = (diameter ** 2) * 0.006165 * length * quantity
-
-        new_entry = BBS(
+        new_bbs = BBS(
             project_name=project_name,
             element_type=element_type,
             diameter=diameter,
@@ -202,56 +172,20 @@ def add_bbs():
             user_id=session["user_id"]
         )
 
-        db.session.add(new_entry)
+        db.session.add(new_bbs)
         db.session.commit()
 
-        return redirect(url_for("view_bbs"))
+        flash("BBS record created successfully!", "success")
+        return redirect(url_for("dashboard"))
 
-    return render_template("add_bbs.html")
-
-
-# ================= EDIT BBS =================
-@app.route("/edit/<int:id>", methods=["GET", "POST"])
-@login_required
-def edit_bbs(id):
-    entry = BBS.query.get_or_404(id)
-
-    if entry.user_id != session["user_id"]:
-        flash("Unauthorized access", "danger")
-        return redirect(url_for("view_bbs"))
-
-    if request.method == "POST":
-        entry.project_name = request.form["project_name"]
-        entry.element_type = request.form["element_type"]
-        entry.diameter = float(request.form["diameter"])
-        entry.length = float(request.form["length"])
-        entry.quantity = int(request.form["quantity"])
-        entry.total_weight = (entry.diameter ** 2) * 0.006165 * entry.length * entry.quantity
-
-        db.session.commit()
-        return redirect(url_for("view_bbs"))
-
-    return render_template("edit_bbs.html", entry=entry)
+    return render_template("create_bbs.html")
 
 
-# ================= DELETE BBS =================
-@app.route("/delete/<int:id>")
-@login_required
-def delete_bbs(id):
-    entry = BBS.query.get_or_404(id)
+# -------------------------------------------------
+# Local Development Only
+# -------------------------------------------------
 
-    if entry.user_id != session["user_id"]:
-        flash("Unauthorized access", "danger")
-        return redirect(url_for("view_bbs"))
-
-    db.session.delete(entry)
-    db.session.commit()
-
-    return redirect(url_for("view_bbs"))
-
-
-# ================= RUN =================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-
+    with app.app_context():
+        db.create_all()
+    app.run(host="0.0.0.0", port=5000)
