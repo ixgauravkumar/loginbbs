@@ -3,11 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-import os   # ✅ THIS WAS MISSING
+import os
 import re
 
-# ================= LOAD ENV =================
-
+# ================= APP INIT =================
 app = Flask(__name__)
 
 # ================= SECRET KEY =================
@@ -24,6 +23,9 @@ app.config["SQLALCHEMY_DATABASE_URI"] = \
     f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True
+}
 
 db = SQLAlchemy(app)
 
@@ -63,7 +65,12 @@ class BBS(db.Model):
     total_weight = db.Column(db.Float)
 
 
-# ================= LOGIN REQUIRED =================
+# ================= CREATE TABLES =================
+with app.app_context():
+    db.create_all()
+
+
+# ================= LOGIN REQUIRED DECORATOR =================
 def login_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -80,10 +87,9 @@ def home():
     return redirect(url_for("login"))
 
 
-# ================= REGISTRATION =================
+# ================= REGISTER =================
 @app.route("/register", methods=["GET", "POST"])
 def register():
-
     if request.method == "POST":
         try:
             name = request.form.get("name")
@@ -127,16 +133,14 @@ def register():
             db.session.add(new_user)
             db.session.commit()
 
-            # ================= SEND EMAIL =================
+            # Send Email to Admin
             try:
                 admin_email = os.getenv("ADMIN_EMAIL")
-
                 if admin_email:
                     msg = Message(
                         subject="New User Registration - BBS App",
                         recipients=[admin_email]
                     )
-
                     msg.body = f"""
 New User Registered:
 
@@ -147,9 +151,7 @@ Address: {address}
 DOB: {dob}
 Role: engineer
 """
-
                     mail.send(msg)
-
             except Exception as mail_error:
                 print("Mail Error:", mail_error)
 
@@ -158,8 +160,8 @@ Role: engineer
 
         except Exception as e:
             db.session.rollback()
-            flash("Registration Error. Please try again.", "danger")
             print("Registration Error:", e)
+            flash("Registration Error. Please try again.", "danger")
             return redirect(url_for("register"))
 
     return render_template("register.html")
@@ -168,7 +170,6 @@ Role: engineer
 # ================= LOGIN =================
 @app.route("/login", methods=["GET", "POST"])
 def login():
-
     if request.method == "POST":
         try:
             email = request.form.get("email")
@@ -188,8 +189,8 @@ def login():
                 return redirect(url_for("login"))
 
         except Exception as e:
-            flash("Login Error. Please try again.", "danger")
             print("Login Error:", e)
+            flash("Login Error. Please try again.", "danger")
             return redirect(url_for("login"))
 
     return render_template("login.html")
@@ -207,7 +208,6 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-
     bbs_list = BBS.query.all()
     total_weight = sum(b.total_weight or 0 for b in bbs_list)
 
@@ -218,11 +218,10 @@ def dashboard():
     )
 
 
-# ================= ADD BBS ENTRY =================
+# ================= ADD BBS =================
 @app.route("/add", methods=["GET", "POST"])
 @login_required
 def add_bbs():
-
     if request.method == "POST":
         try:
             project_name = request.form["project_name"]
@@ -250,7 +249,9 @@ def add_bbs():
 
         except Exception as e:
             db.session.rollback()
-            return f"Error: {str(e)}"
+            print("BBS Error:", e)
+            flash("Error adding BBS entry", "danger")
+            return redirect(url_for("dashboard"))
 
     return render_template("add_bbs.html")
 
@@ -258,4 +259,3 @@ def add_bbs():
 # ================= MAIN =================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
