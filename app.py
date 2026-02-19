@@ -1,32 +1,41 @@
-import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+
+from flask import Flask, render_template, request, redirect, session, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+import os
+import re
 
-# -------------------------------------------------
-# App Configuration
-# -------------------------------------------------
-
+# ================= APP INIT =================
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "bbs-secret-key")
 
-DB_USER = os.environ.get("DB_USER", "flaskuser")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "flaskpass")
-DB_HOST = os.environ.get("DB_HOST", "localhost")
-DB_PORT = os.environ.get("DB_PORT", "3306")
-DB_NAME = os.environ.get("DB_NAME", "login_db")
+# ================= DATABASE CONFIG =================
+DB_USER = os.getenv("DB_USER", "flaskuser")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "flaskpass")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "3306")
+DB_NAME = os.getenv("DB_NAME", "login_db")
 
-app.config["SQLALCHEMY_DATABASE_URI"] = (
+app.config["SQLALCHEMY_DATABASE_URI"] = \
     f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# -------------------------------------------------
-# Models
-# -------------------------------------------------
+# ================= MAIL CONFIG =================
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
+app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv("MAIL_USERNAME")
 
+mail = Mail(app)
+
+# ================= MODELS =================
 class User(db.Model):
     __tablename__ = "user"
 
@@ -37,103 +46,212 @@ class User(db.Model):
     address = db.Column(db.String(255))
     dob = db.Column(db.String(20))
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default="user")
+    role = db.Column(db.String(20), default="engineer")
+
+    bbs_entries = db.relationship("BBS", backref="owner", lazy=True)
 
 
 class BBS(db.Model):
     __tablename__ = "bbs"
 
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text)
-    created_by = db.Column(db.String(100))
+    project_name = db.Column(db.String(100))
+    element_type = db.Column(db.String(50))
+    diameter = db.Column(db.Float)
+    length = db.Column(db.Float)
+    quantity = db.Column(db.Integer)
+    total_weight = db.Column(db.Float)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
 
-# -------------------------------------------------
-# Routes
-# -------------------------------------------------
+# ================= CREATE TABLES =================
+with app.app_context():
+    db.create_all()
 
+
+# ================= LOGIN REQUIRED =================
+def login_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if "user_id" not in session:
+            flash("Please login first", "warning")
+            return redirect(url_for("login"))
+        return func(*args, **kwargs)
+    return wrapper
+
+
+# ================= HOME =================
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return redirect(url_for("login"))
 
 
+# ================= REGISTER =================
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name = request.form["name"]
-        email = request.form["email"]
-        password = generate_password_hash(request.form["password"])
 
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            flash("Email already registered!", "danger")
+        name = request.form.get("name")
+        email = request.form.get("email")
+        phone = request.form.get("phone")
+        address = request.form.get("address")
+        dob = request.form.get("dob")
+        password = request.form.get("password")
+
+        if not name or not email or not password:
+            flash("Name, Email and Password required", "danger")
             return redirect(url_for("register"))
+
+        if User.query.filter_by(email=email).first():
+            flash("Email already exists", "warning")
+            return redirect(url_for("register"))
+
+        hashed_password = generate_password_hash(password)
 
         new_user = User(
             name=name,
             email=email,
-            password=password,
+            phone=phone,
+            address=address,
+            dob=dob,
+            password=hashed_password
         )
 
         db.session.add(new_user)
         db.session.commit()
 
-        flash("Registration successful!", "success")
+        flash("Registration Successful!", "success")
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
 
+# ================= LOGIN =================
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
+
+        email = request.form.get("email")
+        password = request.form.get("password")
 
         user = User.query.filter_by(email=email).first()
 
         if user and check_password_hash(user.password, password):
-            flash("Login successful!", "success")
-            return redirect(url_for("home"))
+            session["user_id"] = user.id
+            session["user_name"] = user.name
+            session["role"] = user.role
+            return redirect(url_for("dashboard"))
         else:
-            flash("Invalid credentials!", "danger")
+            flash("Invalid credentials", "danger")
+            return redirect(url_for("login"))
 
     return render_template("login.html")
 
 
+# ================= LOGOUT =================
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ================= DASHBOARD =================
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    bbs_list = BBS.query.filter_by(user_id=session["user_id"]).all()
+    total_weight = sum(b.total_weight or 0 for b in bbs_list)
+
+    return render_template(
+        "dashboard.html",
+        bbs_list=bbs_list,
+        total_weight=round(total_weight, 2)
+    )
+
+
+# ================= VIEW ALL BBS =================
 @app.route("/bbs")
-def bbs_list():
-    posts = BBS.query.all()
-    return render_template("bbs.html", posts=posts)
+@login_required
+def view_bbs():
+    bbs_list = BBS.query.filter_by(user_id=session["user_id"]).all()
+    return render_template("bbs_list.html", bbs_list=bbs_list)
 
 
-@app.route("/bbs/create", methods=["GET", "POST"])
-def create_bbs():
+# ================= ADD BBS =================
+@app.route("/add", methods=["GET", "POST"])
+@login_required
+def add_bbs():
     if request.method == "POST":
-        title = request.form["title"]
-        description = request.form["description"]
 
-        new_post = BBS(
-            title=title,
-            description=description,
-            created_by="admin"
+        project_name = request.form["project_name"]
+        element_type = request.form["element_type"]
+        diameter = float(request.form["diameter"])
+        length = float(request.form["length"])
+        quantity = int(request.form["quantity"])
+
+        total_weight = (diameter ** 2) * 0.006165 * length * quantity
+
+        new_entry = BBS(
+            project_name=project_name,
+            element_type=element_type,
+            diameter=diameter,
+            length=length,
+            quantity=quantity,
+            total_weight=total_weight,
+            user_id=session["user_id"]
         )
 
-        db.session.add(new_post)
+        db.session.add(new_entry)
         db.session.commit()
 
-        flash("Post created successfully!", "success")
-        return redirect(url_for("bbs_list"))
+        return redirect(url_for("view_bbs"))
 
-    return render_template("create_bbs.html")
+    return render_template("add_bbs.html")
 
 
-# -------------------------------------------------
-# Run App (Only for local testing)
-# -------------------------------------------------
+# ================= EDIT BBS =================
+@app.route("/edit/<int:id>", methods=["GET", "POST"])
+@login_required
+def edit_bbs(id):
+    entry = BBS.query.get_or_404(id)
 
+    if entry.user_id != session["user_id"]:
+        flash("Unauthorized access", "danger")
+        return redirect(url_for("view_bbs"))
+
+    if request.method == "POST":
+        entry.project_name = request.form["project_name"]
+        entry.element_type = request.form["element_type"]
+        entry.diameter = float(request.form["diameter"])
+        entry.length = float(request.form["length"])
+        entry.quantity = int(request.form["quantity"])
+        entry.total_weight = (entry.diameter ** 2) * 0.006165 * entry.length * entry.quantity
+
+        db.session.commit()
+        return redirect(url_for("view_bbs"))
+
+    return render_template("edit_bbs.html", entry=entry)
+
+
+# ================= DELETE BBS =================
+@app.route("/delete/<int:id>")
+@login_required
+def delete_bbs(id):
+    entry = BBS.query.get_or_404(id)
+
+    if entry.user_id != session["user_id"]:
+        flash("Unauthorized access", "danger")
+        return redirect(url_for("view_bbs"))
+
+    db.session.delete(entry)
+    db.session.commit()
+
+    return redirect(url_for("view_bbs"))
+
+
+# ================= RUN =================
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()   # ONLY runs in local dev mode
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
+
