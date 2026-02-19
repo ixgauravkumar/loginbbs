@@ -34,6 +34,9 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(20))
+    address = db.Column(db.String(255))
+    dob = db.Column(db.String(20))
     password = db.Column(db.String(255), nullable=False)
 
     bbs = db.relationship("BBS", backref="user", lazy=True)
@@ -81,10 +84,13 @@ def register():
     if request.method == "POST":
         name = request.form.get("name")
         email = request.form.get("email")
+        phone = request.form.get("phone")
+        address = request.form.get("address")
+        dob = request.form.get("dob")
         password = request.form.get("password")
 
         if not name or not email or not password:
-            flash("All fields are required!", "danger")
+            flash("Name, Email and Password are required!", "danger")
             return redirect(url_for("register"))
 
         existing_user = User.query.filter_by(email=email).first()
@@ -97,6 +103,9 @@ def register():
         new_user = User(
             name=name,
             email=email,
+            phone=phone,
+            address=address,
+            dob=dob,
             password=hashed_password
         )
 
