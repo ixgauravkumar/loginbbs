@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loginbbs-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loginbbs
+  template:
+    metadata:
+      labels:
+        app: loginbbs
+    spec:
+      containers:
+        - name: loginbbs
+          image: gauravkumar4578/loginbbs:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DB_HOST
+              value: "51.20.52.174"
+
+            - name: DB_PORT
+              value: "3306"
+
+            - name: DB_NAME
+              value: "login_db"
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: username
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: password
+
+            - name: MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: email-secret
+                  key: MAIL_USERNAME
+
+            - name: MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-secret
+                  key: MAIL_PASSWORD
+
+            - name: MAIL_SERVER
+              value: "smtp.gmail.com"
+
+            - name: MAIL_PORT
+              value: "587"
+
+            - name: MAIL_USE_TLS
+              value: "true"
